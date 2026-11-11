@@ -1,0 +1,570 @@
+// =============================================================
+// CareerCraft AI - Prisma Schema
+// Database: PostgreSQL
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// ENUMS
+// =============================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+  VOLUNTEER
+  OTHER
+}
+
+enum SkillCategory {
+  TECHNICAL
+  PROGRAMMING_LANGUAGE
+  FRAMEWORK
+  DATABASE
+  TOOL
+  SOFT_SKILL
+  OTHER
+}
+
+enum ApplicationStatus {
+  INTERESTED
+  PREPARING
+  APPLIED
+  INTERVIEW
+  REJECTED
+  ACCEPTED
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  TRIALING
+}
+
+enum AIActionType {
+  ANALYZE_JOB
+  GENERATE_RESUME
+  GENERATE_COVER_LETTER
+  IMPROVE_CONTENT
+  ATS_ANALYSIS
+  CAREER_ASSISTANT
+  SKILLS_GAP
+}
+
+// =============================================================
+// USER
+// =============================================================
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String    // bcrypt hash - NEVER return to frontend
+  role              UserRole  @default(USER)
+  isEmailVerified   Boolean   @default(false)
+  isSuspended       Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  profile           Profile?
+  jobDescriptions   JobDescription[]
+  resumes           Resume[]
+  coverLetters      CoverLetter[]
+  applications      Application[]
+  aiUsage           AIUsage[]
+  subscription      Subscription?
+  feedback          Feedback[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  refreshSessions   RefreshSession[]
+  atsAnalyses       ATSAnalysis[]
+  conversations     Conversation[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// =============================================================
+// PROFILE
+// =============================================================
+
+model Profile {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  firstName        String
+  lastName         String
+  professionalTitle String?
+  phone            String?
+  location         String?
+  linkedinUrl      String?
+  githubUrl        String?
+  portfolioUrl     String?
+  photoUrl         String?
+  summary          String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences      Experience[]
+  education        Education[]
+  skills           Skill[]
+  projects         Project[]
+  certifications   Certification[]
+
+  @@index([userId])
+  @@map("profiles")
+}
+
+// =============================================================
+// EXPERIENCE
+// =============================================================
+
+model Experience {
+  id               String         @id @default(uuid())
+  profileId        String
+  company          String
+  jobTitle         String
+  employmentType   EmploymentType @default(FULL_TIME)
+  location         String?
+  startDate        DateTime
+  endDate          DateTime?
+  isCurrent        Boolean        @default(false)
+  responsibilities String?        @db.Text
+  achievements     String?        @db.Text
+  displayOrder     Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Relations
+  profile          Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("experiences")
+}
+
+// =============================================================
+// EDUCATION
+// =============================================================
+
+model Education {
+  id               String    @id @default(uuid())
+  profileId        String
+  institution      String
+  degree           String
+  fieldOfStudy     String?
+  startDate        DateTime
+  graduationDate   DateTime?
+  gpa              String?
+  description      String?   @db.Text
+  displayOrder     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("education")
+}
+
+// =============================================================
+// SKILL
+// =============================================================
+
+model Skill {
+  id               String        @id @default(uuid())
+  profileId        String
+  name             String
+  category         SkillCategory @default(TECHNICAL)
+  proficiencyLevel Int?          // 1-5 scale
+  displayOrder     Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  profile          Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("skills")
+}
+
+// =============================================================
+// PROJECT
+// =============================================================
+
+model Project {
+  id               String    @id @default(uuid())
+  profileId        String
+  name             String
+  description      String?   @db.Text
+  technologies     String[]  // Array of tech names
+  projectUrl       String?
+  startDate        DateTime?
+  endDate          DateTime?
+  displayOrder     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("projects")
+}
+
+// =============================================================
+// CERTIFICATION
+// =============================================================
+
+model Certification {
+  id               String    @id @default(uuid())
+  profileId        String
+  name             String
+  issuingOrg       String
+  issueDate        DateTime?
+  expirationDate   DateTime?
+  credentialUrl    String?
+  displayOrder     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("certifications")
+}
+
+// =============================================================
+// JOB DESCRIPTION
+// =============================================================
+
+model JobDescription {
+  id                    String    @id @default(uuid())
+  userId                String
+  title                 String
+  company               String?
+  rawText               String    @db.Text
+  // AI-extracted structured data
+  extractedData         Json?     // { jobTitle, company, requiredSkills, responsibilities, etc. }
+  isAnalyzed            Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumes               Resume[]
+  coverLetters          CoverLetter[]
+  applications          Application[]
+  atsAnalyses           ATSAnalysis[]
+
+  @@index([userId])
+  @@map("job_descriptions")
+}
+
+// =============================================================
+// RESUME
+// =============================================================
+
+model Resume {
+  id               String    @id @default(uuid())
+  userId           String
+  jobDescriptionId String?
+  title            String    // User-given name e.g. "Software Engineer @ Google"
+  templateId       String?
+  // Full resume content as flexible JSON
+  content          Json      // { summary, skills, experiences, education, projects, certifications, customSections }
+  // Visual settings
+  settings         Json?     // { font, fontSize, accentColor, margins, sectionsOrder }
+  language         String    @default("en")
+  tone             String    @default("professional")
+  isPublic         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobDescription   JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  template         Template?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  versions         ResumeVersion[]
+  atsAnalyses      ATSAnalysis[]
+  coverLetters     CoverLetter[]
+  applications     Application[]
+
+  @@index([userId])
+  @@map("resumes")
+}
+
+// =============================================================
+// RESUME VERSION
+// =============================================================
+
+model ResumeVersion {
+  id          String   @id @default(uuid())
+  resumeId    String
+  versionNum  Int
+  content     Json     // Snapshot of resume content at this version
+  settings    Json?    // Snapshot of settings
+  createdAt   DateTime @default(now())
+
+  // Relations
+  resume      Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId])
+  @@map("resume_versions")
+}
+
+// =============================================================
+// COVER LETTER
+// =============================================================
+
+model CoverLetter {
+  id               String    @id @default(uuid())
+  userId           String
+  resumeId         String?
+  jobDescriptionId String?
+  title            String
+  content          String    @db.Text
+  tone             String    @default("professional")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume           Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  jobDescription   JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  applications     Application[]
+
+  @@index([userId])
+  @@map("cover_letters")
+}
+
+// =============================================================
+// ATS ANALYSIS
+// =============================================================
+
+model ATSAnalysis {
+  id               String    @id @default(uuid())
+  userId           String
+  resumeId         String
+  jobDescriptionId String?
+  score            Int       // 0-100 estimated score
+  results          Json      // { matchedKeywords, missingKeywords, strengths, weaknesses, recommendations }
+  createdAt        DateTime  @default(now())
+
+  // Relations
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume           Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription   JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([resumeId])
+  @@map("ats_analyses")
+}
+
+// =============================================================
+// APPLICATION TRACKER
+// =============================================================
+
+model Application {
+  id               String            @id @default(uuid())
+  userId           String
+  resumeId         String?
+  coverLetterId    String?
+  jobDescriptionId String?
+  company          String
+  jobTitle         String
+  jobUrl           String?
+  status           ApplicationStatus @default(INTERESTED)
+  applicationDate  DateTime?
+  deadline         DateTime?
+  interviewDate    DateTime?
+  notes            String?           @db.Text
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  // Relations
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume           Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  coverLetter      CoverLetter?    @relation(fields: [coverLetterId], references: [id], onDelete: SetNull)
+  jobDescription   JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("applications")
+}
+
+// =============================================================
+// TEMPLATE
+// =============================================================
+
+model Template {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  category    String   // professional, modern, minimalist, creative, technical, executive, graduate, academic
+  description String?
+  previewUrl  String?
+  isActive    Boolean  @default(true)
+  isPremium   Boolean  @default(false)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  resumes     Resume[]
+
+  @@map("templates")
+}
+
+// =============================================================
+// AI USAGE TRACKING
+// =============================================================
+
+model AIUsage {
+  id         String       @id @default(uuid())
+  userId     String
+  action     AIActionType
+  tokensUsed Int          @default(0)
+  success    Boolean      @default(true)
+  metadata   Json?        // Additional context (resumeId, jobId, etc.)
+  createdAt  DateTime     @default(now())
+
+  // Relations
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, action])
+  @@map("ai_usage")
+}
+
+// =============================================================
+// SUBSCRIPTION
+// =============================================================
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String             @unique
+  plan       SubscriptionPlan   @default(FREE)
+  status     SubscriptionStatus @default(ACTIVE)
+  startDate  DateTime           @default(now())
+  endDate    DateTime?
+  // Payment provider data (Stripe etc. - added in future phase)
+  externalId String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  // Relations
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// =============================================================
+// FEEDBACK
+// =============================================================
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String?
+  subject   String?
+  message   String   @db.Text
+  rating    Int?     // 1-5
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("feedback")
+}
+
+// =============================================================
+// CONVERSATION (AI Career Assistant)
+// =============================================================
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String    @default("New Conversation")
+  messages  Json      // Array of { role, content, timestamp }
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("conversations")
+}
+
+// =============================================================
+// AUTH TOKENS
+// =============================================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique  // hashed token stored in DB
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("email_verification_tokens")
+}
+
+model RefreshSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique // hashed refresh token
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_sessions")
+}
