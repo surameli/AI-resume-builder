@@ -8,14 +8,20 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 
 // Route modules
-import authRoutes from './routes/auth.routes.js';
+import authRoutes      from './routes/auth.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import profileRoutes   from './routes/profile.routes.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -65,15 +71,17 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ─── API Routes ──────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+// ─── Static Files (uploaded profile photos) ──────────────────────────────────
+// Serves /uploads/* as static files so profile photos can be accessed by the frontend.
+// In production, replace this with a CDN/S3 URL stored in the database.
+app.use('/uploads', express.static(path.join(__dirname, '..', '..', 'uploads')));
 
-// Placeholder routes for future phases — respond with 501 so the frontend
-// knows the endpoint exists but isn't implemented yet
-app.use('/api/profile', (req, res) => {
-  res.status(501).json({ success: false, message: 'Profile API coming in Phase 2' });
-});
+// ─── API Routes ──────────────────────────────────────────────────────────────
+app.use('/api/auth',      authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/profile',   profileRoutes);
+
+// Placeholder routes for future phases — respond with 501
 app.use('/api/resumes', (req, res) => {
   res.status(501).json({ success: false, message: 'Resumes API coming in Phase 4' });
 });
