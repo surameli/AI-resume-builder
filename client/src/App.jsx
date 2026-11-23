@@ -21,6 +21,9 @@ import Landing from './pages/landing/Landing.jsx';
 // Dashboard
 import Dashboard from './pages/dashboard/Dashboard.jsx';
 
+// Profile
+import Profile from './pages/profile/Profile.jsx';
+
 // Placeholder pages for phases 2-12
 import ComingSoon from './pages/ComingSoon.jsx';
 
@@ -54,7 +57,7 @@ const App = () => {
           <Route path="/profile" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Profile Management" phase="Phase 2" />
+                <Profile />
               </DashboardLayout>
             </ProtectedRoute>
           } />

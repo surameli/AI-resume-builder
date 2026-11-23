@@ -1,79 +1,90 @@
+
 /**
  * Axios API client.
- * - Sends credentials (HTTP-only cookies) with every request.
- * - Automatically refreshes the access token when it expires (401).
- * - All services import this instance instead of raw axios.
+ * - Sends HTTP-only cookies with requests.
+ * - Refreshes expired access tokens once.
+ * - Prevents duplicate refresh requests.
+ * - Prevents infinite 401 retry loops.
  */
 import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  withCredentials: true, // Required for HTTP-only cookie auth
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000,
 });
 
-// ─── Response Interceptor ────────────────────────────────────────────────────
-// On 401, attempt a token refresh once, then retry the original request.
-// If refresh fails, redirect to /login.
+// Separate client for refreshing tokens.
+// This prevents refresh requests from triggering the same interceptor.
+const refreshClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000,
+});
 
-let isRefreshing = false;
-let failedQueue = []; // Queued requests waiting for refresh
-
-const processQueue = (error) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve();
-    }
-  });
-  failedQueue = [];
-};
+let refreshPromise = null;
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Only attempt refresh on 401, not on the refresh endpoint itself
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      !originalRequest.url.includes('/auth/refresh') &&
-      !originalRequest.url.includes('/auth/login')
-    ) {
-      if (isRefreshing) {
-        // Queue this request until the refresh completes
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(() => api(originalRequest))
-          .catch((err) => Promise.reject(err));
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        await api.post('/auth/refresh');
-        processQueue(null);
-        return api(originalRequest);
-      } catch (refreshError) {
-        processQueue(refreshError);
-        // Refresh failed — session is dead, redirect to login
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-      }
+    if (!originalRequest || !error.response) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    const requestUrl = originalRequest.url || '';
+
+    const isAuthRequest =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/refresh') ||
+      requestUrl.includes('/auth/logout');
+
+    // Only refresh on 401.
+    // Never retry the same request more than once.
+    if (
+      error.response.status !== 401 ||
+      originalRequest._retry ||
+      isAuthRequest
+    ) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      // Reuse the same refresh request for concurrent 401 responses.
+      if (!refreshPromise) {
+        refreshPromise = refreshClient
+          .post('/auth/refresh')
+          .finally(() => {
+            refreshPromise = null;
+          });
+      }
+
+      await refreshPromise;
+
+      // The backend sets new HTTP-only cookies.
+      // Retry the original request using those cookies.
+      return api(originalRequest);
+    } catch (refreshError) {
+      // Refresh failed. The session is no longer valid.
+      if (
+        typeof window !== 'undefined' &&
+        !window.location.pathname.includes('/login')
+      ) {
+        window.location.replace('/login');
+      }
+
+      return Promise.reject(refreshError);
+    }
   }
 );
 

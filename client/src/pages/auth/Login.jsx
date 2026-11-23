@@ -16,7 +16,7 @@ import Alert from '../../components/common/Alert.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 const schema = z.object({
-  email:    z.string().email('Please enter a valid email address'),
+  email:    z.string().trim().toLowerCase().email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 

@@ -95,8 +95,8 @@ export const registerUser = async ({ firstName, lastName, email, password }) => 
 // ─── Login ───────────────────────────────────────────────────────────────────
 
 export const loginUser = async ({ email, password, userAgent, ipAddress }) => {
-  const user = await prisma.user.findUnique({
-    where: { email },
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } },
     select: {
       id: true,
       email: true,

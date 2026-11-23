@@ -15,7 +15,7 @@ import Alert from '../../components/common/Alert.jsx';
 import * as authService from '../../services/auth.service.js';
 
 const schema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().trim().toLowerCase().email('Please enter a valid email address'),
 });
 
 const ForgotPassword = () => {

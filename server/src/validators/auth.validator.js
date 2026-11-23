@@ -20,9 +20,9 @@ export const registerSchema = z.object({
 
   email: z
     .string({ required_error: 'Email is required' })
-    .email('Please enter a valid email address')
+    .trim()
     .toLowerCase()
-    .trim(),
+    .email('Please enter a valid email address'),
 
   password: z
     .string({ required_error: 'Password is required' })
@@ -36,9 +36,9 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z
     .string({ required_error: 'Email is required' })
-    .email('Please enter a valid email address')
+    .trim()
     .toLowerCase()
-    .trim(),
+    .email('Please enter a valid email address'),
 
   password: z
     .string({ required_error: 'Password is required' })
@@ -48,9 +48,9 @@ export const loginSchema = z.object({
 export const forgotPasswordSchema = z.object({
   email: z
     .string({ required_error: 'Email is required' })
-    .email('Please enter a valid email address')
+    .trim()
     .toLowerCase()
-    .trim(),
+    .email('Please enter a valid email address'),
 });
 
 export const resetPasswordSchema = z.object({

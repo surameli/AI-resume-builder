@@ -88,11 +88,39 @@ export const logout = async (req, res, next) => {
 
 // ─── POST /api/auth/refresh ───────────────────────────────────────────────────
 
+// export const refreshToken = async (req, res, next) => {
+//   try {
+//     const oldRefreshToken = req.cookies?.refreshToken;
+
+//     if (!oldRefreshToken) {
+//       return sendBadRequest(res, 'No refresh token provided');
+//     }
+
+//     const { accessToken, refreshToken: newRefreshToken } =
+//       await authService.refreshAccessToken(oldRefreshToken);
+
+//     res.cookie('accessToken', accessToken, getAccessCookieOptions());
+//     res.cookie('refreshToken', newRefreshToken, getRefreshCookieOptions());
+
+//     return sendSuccess(res, null, 'Token refreshed');
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+
 export const refreshToken = async (req, res, next) => {
   try {
     const oldRefreshToken = req.cookies?.refreshToken;
 
     if (!oldRefreshToken) {
+      res.clearCookie('accessToken', clearCookieOptions());
+      res.clearCookie('refreshToken', {
+        ...clearCookieOptions(),
+        path: '/api/auth',
+      });
+
       return sendBadRequest(res, 'No refresh token provided');
     }
 
@@ -104,9 +132,18 @@ export const refreshToken = async (req, res, next) => {
 
     return sendSuccess(res, null, 'Token refreshed');
   } catch (error) {
+    if (error.statusCode === 401) {
+      res.clearCookie('accessToken', clearCookieOptions());
+      res.clearCookie('refreshToken', {
+        ...clearCookieOptions(),
+        path: '/api/auth',
+      });
+    }
+
     next(error);
   }
 };
+
 
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────────
 
