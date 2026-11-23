@@ -20,6 +20,8 @@ import { apiLimiter } from './middleware/rateLimiter.js';
 import authRoutes      from './routes/auth.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import profileRoutes   from './routes/profile.routes.js';
+import jobsRoutes      from './routes/jobs.routes.js';
+import aiRoutes        from './routes/ai.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +82,8 @@ app.use('/uploads', express.static(path.join(__dirname, '..', '..', 'uploads')))
 app.use('/api/auth',      authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile',   profileRoutes);
+app.use('/api/jobs',      jobsRoutes);
+app.use('/api/ai',        aiRoutes);
 
 // Placeholder routes for future phases — respond with 501
 app.use('/api/resumes', (req, res) => {
