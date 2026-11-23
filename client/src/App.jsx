@@ -21,10 +21,13 @@ import Landing from './pages/landing/Landing.jsx';
 // Dashboard
 import Dashboard from './pages/dashboard/Dashboard.jsx';
 
-// Profile
+// Phase 2 — Profile
 import Profile from './pages/profile/Profile.jsx';
 
-// Placeholder pages for phases 2-12
+// Phase 3 — Job Analyzer
+import JobAnalyzer from './pages/jobs/JobAnalyzer.jsx';
+
+// Placeholder pages for phases 4-12
 import ComingSoon from './pages/ComingSoon.jsx';
 
 const App = () => {
@@ -53,7 +56,7 @@ const App = () => {
             }
           />
 
-          {/* Profile — Phase 2 */}
+          {/* Profile — Phase 2 ✅ */}
           <Route path="/profile" element={
             <ProtectedRoute>
               <DashboardLayout>
@@ -85,11 +88,11 @@ const App = () => {
             </ProtectedRoute>
           } />
 
-          {/* Job analyzer — Phase 3 */}
+          {/* Job analyzer — Phase 3 ✅ */}
           <Route path="/job-analyzer" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Job Description Analyzer" phase="Phase 3" />
+                <JobAnalyzer />
               </DashboardLayout>
             </ProtectedRoute>
           } />
