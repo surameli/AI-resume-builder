@@ -27,7 +27,15 @@ import Profile from './pages/profile/Profile.jsx';
 // Phase 3 — Job Analyzer
 import JobAnalyzer from './pages/jobs/JobAnalyzer.jsx';
 
-// Placeholder pages for phases 4-12
+// Phase 4 — Resumes
+import ResumeCreate from './pages/resumes/ResumeCreate.jsx';
+import ResumesList   from './pages/resumes/ResumesList.jsx';
+
+// Phase 5 — Editor + Templates
+import ResumeEditor from './pages/resumes/ResumeEditor.jsx';
+import Templates    from './pages/templates/Templates.jsx';
+
+// Placeholder pages for phases 6-12
 import ComingSoon from './pages/ComingSoon.jsx';
 
 const App = () => {
@@ -65,25 +73,25 @@ const App = () => {
             </ProtectedRoute>
           } />
 
-          {/* Resumes — Phase 4/5 */}
+          {/* Resumes — Phase 4 ✅ (list) / Phase 5 (editor) */}
           <Route path="/resumes" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Resume Builder" phase="Phase 4" />
+                <ResumesList />
               </DashboardLayout>
             </ProtectedRoute>
           } />
           <Route path="/resume/create" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="AI Resume Generator" phase="Phase 4" />
+                <ResumeCreate />
               </DashboardLayout>
             </ProtectedRoute>
           } />
           <Route path="/resume/:id/edit" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Resume Editor" phase="Phase 5" />
+                <ResumeEditor />
               </DashboardLayout>
             </ProtectedRoute>
           } />
@@ -97,11 +105,11 @@ const App = () => {
             </ProtectedRoute>
           } />
 
-          {/* Templates — Phase 5 */}
+          {/* Templates — Phase 5 ✅ */}
           <Route path="/templates" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Resume Templates" phase="Phase 5" />
+                <Templates />
               </DashboardLayout>
             </ProtectedRoute>
           } />
