@@ -7,6 +7,7 @@ import { Pencil, Trash2, GripVertical } from 'lucide-react';
 
 const ItemCard = ({
   children,
+  
   onEdit,
   onDelete,
   draggable = false,
