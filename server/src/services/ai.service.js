@@ -116,3 +116,135 @@ export const analyzeJobDescription = async (userId, rawText) => {
 
   return { extractedData, usage };
 };
+
+
+// ─── Generate Resume ──────────────────────────────────────────────────────────
+
+import {
+  RESUME_GENERATION_SYSTEM_PROMPT,
+  buildResumeGenerationUserPrompt,
+  IMPROVE_CONTENT_SYSTEM_PROMPT,
+  buildImproveContentUserPrompt,
+} from '../prompts/resumeGeneration.js';
+
+/**
+ * Generates a tailored resume using the user's profile and optionally
+ * a target job description.
+ *
+ * @param {string} userId
+ * @param {Object} options
+ * @param {string|null} options.jobDescriptionId - ID of saved job description
+ * @param {string|null} options.templateId - Template to use
+ * @param {Object} options.preferences - { tone, language, length, includeSections }
+ * @returns {Promise<{ content: Object, usage: Object }>}
+ */
+export const generateResume = async (userId, { jobDescriptionId, preferences = {} }) => {
+  // 1. Check usage limit
+  await checkUsageLimit(userId, 'GENERATE_RESUME');
+
+  // 2. Fetch the user's full profile from the database
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    include: {
+      experiences:    { orderBy: { displayOrder: 'asc' } },
+      education:      { orderBy: { displayOrder: 'asc' } },
+      skills:         { orderBy: { displayOrder: 'asc' } },
+      projects:       { orderBy: { displayOrder: 'asc' } },
+      certifications: { orderBy: { displayOrder: 'asc' } },
+    },
+  });
+
+  if (!profile) {
+    const e = new Error('Please complete your profile first before generating a resume.');
+    e.statusCode = 400;
+    throw e;
+  }
+
+  // Check if the profile has enough data to generate a meaningful resume
+  const hasExperience = profile.experiences.length > 0;
+  const hasEducation   = profile.education.length > 0;
+  const hasSkills      = profile.skills.length > 0;
+
+  if (!hasExperience && !hasEducation && !hasSkills) {
+    const e = new Error(
+      'Your profile is too empty to generate a resume. Please add at least some experience, education, or skills first.'
+    );
+    e.statusCode = 400;
+    throw e;
+  }
+
+  // 3. Fetch the job description if provided
+  let jobDescription = null;
+  if (jobDescriptionId) {
+    jobDescription = await prisma.jobDescription.findUnique({
+      where: { id: jobDescriptionId },
+    });
+    if (!jobDescription || jobDescription.userId !== userId) {
+      const e = new Error('Job description not found');
+      e.statusCode = 404;
+      throw e;
+    }
+  }
+
+  // 4. Build the prompt and call Groq
+  const { data, usage } = await callGroqJSON({
+    messages: [
+      { role: 'system', content: RESUME_GENERATION_SYSTEM_PROMPT },
+      { role: 'user',   content: buildResumeGenerationUserPrompt(profile, jobDescription, preferences) },
+    ],
+    temperature: 0.6, // Slightly higher for more natural writing
+    maxTokens: 4000,
+  });
+
+  // 5. Validate the generated content has the expected structure
+  const content = {
+    summary:        data.summary        ?? '',
+    skills:         data.skills         ?? [],
+    experiences:    data.experiences    ?? [],
+    education:      data.education      ?? [],
+    projects:       data.projects       ?? [],
+    certifications: data.certifications ?? [],
+    customSections: data.customSections ?? [],
+  };
+
+  // 6. Record usage (success)
+  await recordAIUsage(userId, 'GENERATE_RESUME', usage.totalTokens, true, {
+    jobDescriptionId: jobDescriptionId || null,
+    sections: Object.keys(content).filter(k => Array.isArray(content[k]) ? content[k].length > 0 : !!content[k]),
+  });
+
+  return { content, usage };
+};
+
+// ─── Improve Content ────────────────────────────────────────────────────────────
+
+/**
+ * Uses AI to improve a piece of resume content (e.g., a summary or bullet point).
+ *
+ * @param {string} userId
+ * @param {string} content - The text to improve
+ * @param {string} instructions - Optional specific instructions
+ * @returns {Promise<{ improvedContent: string, usage: Object }>}
+ */
+export const improveContent = async (userId, content, instructions = '') => {
+  // 1. Check usage limit
+  await checkUsageLimit(userId, 'IMPROVE_CONTENT');
+
+  // 2. Call Groq with the improvement prompt
+  const { data, usage } = await callGroqJSON({
+    messages: [
+      { role: 'system', content: IMPROVE_CONTENT_SYSTEM_PROMPT },
+      { role: 'user',   content: buildImproveContentUserPrompt(content, instructions) },
+    ],
+    temperature: 0.5,
+    maxTokens: 1500,
+  });
+
+  // 3. Extract improved content
+  const improvedContent = data.improvedContent ?? content;
+
+  // 4. Record usage
+  await recordAIUsage(userId, 'IMPROVE_CONTENT', usage.totalTokens, true);
+
+  return { improvedContent, usage };
+};
