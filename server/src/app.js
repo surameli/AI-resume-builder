@@ -22,6 +22,8 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import profileRoutes   from './routes/profile.routes.js';
 import jobsRoutes      from './routes/jobs.routes.js';
 import aiRoutes        from './routes/ai.routes.js';
+import resumesRoutes   from './routes/resumes.routes.js';
+import templatesRoutes from './routes/templates.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -84,14 +86,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile',   profileRoutes);
 app.use('/api/jobs',      jobsRoutes);
 app.use('/api/ai',        aiRoutes);
-
-// Placeholder routes for future phases — respond with 501
-app.use('/api/resumes', (req, res) => {
-  res.status(501).json({ success: false, message: 'Resumes API coming in Phase 4' });
-});
-app.use('/api/jobs', (req, res) => {
-  res.status(501).json({ success: false, message: 'Jobs API coming in Phase 3' });
-});
+app.use('/api/resumes',   resumesRoutes);
+app.use('/api/templates', templatesRoutes);
 
 // ─── 404 & Error Handlers ────────────────────────────────────────────────────
 app.use(notFoundHandler);
