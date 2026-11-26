@@ -9,6 +9,8 @@ const icons = {
   success: CheckCircle2,
   info:    Info,
   warning: AlertTriangle,
+
+  
 };
 
 export const Alert = ({ type = 'info', message, dismissible = false, className = '' }) => {
