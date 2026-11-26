@@ -35,7 +35,12 @@ import ResumesList   from './pages/resumes/ResumesList.jsx';
 import ResumeEditor from './pages/resumes/ResumeEditor.jsx';
 import Templates    from './pages/templates/Templates.jsx';
 
-// Placeholder pages for phases 6-12
+// Phase 6 — Cover Letters
+import CoverLettersList   from './pages/cover-letters/CoverLettersList.jsx';
+import CoverLetterCreate  from './pages/cover-letters/CoverLetterCreate.jsx';
+import CoverLetterEditor  from './pages/cover-letters/CoverLetterEditor.jsx';
+
+// Placeholder pages for phases 7-12
 import ComingSoon from './pages/ComingSoon.jsx';
 
 const App = () => {
@@ -114,18 +119,25 @@ const App = () => {
             </ProtectedRoute>
           } />
 
-          {/* Cover letters — Phase 6 */}
+          {/* Cover letters — Phase 6 ✅ */}
           <Route path="/cover-letters" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Cover Letter Generator" phase="Phase 6" />
+                <CoverLettersList />
               </DashboardLayout>
             </ProtectedRoute>
           } />
           <Route path="/cover-letters/create" element={
             <ProtectedRoute>
               <DashboardLayout>
-                <ComingSoon feature="Cover Letter Generator" phase="Phase 6" />
+                <CoverLetterCreate />
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/cover-letters/:id/edit" element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <CoverLetterEditor />
               </DashboardLayout>
             </ProtectedRoute>
           } />
