@@ -17,13 +17,14 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 
 // Route modules
-import authRoutes      from './routes/auth.routes.js';
-import dashboardRoutes from './routes/dashboard.routes.js';
-import profileRoutes   from './routes/profile.routes.js';
-import jobsRoutes      from './routes/jobs.routes.js';
-import aiRoutes        from './routes/ai.routes.js';
-import resumesRoutes   from './routes/resumes.routes.js';
-import templatesRoutes from './routes/templates.routes.js';
+import authRoutes          from './routes/auth.routes.js';
+import dashboardRoutes     from './routes/dashboard.routes.js';
+import profileRoutes       from './routes/profile.routes.js';
+import jobsRoutes          from './routes/jobs.routes.js';
+import aiRoutes            from './routes/ai.routes.js';
+import resumesRoutes       from './routes/resumes.routes.js';
+import templatesRoutes     from './routes/templates.routes.js';
+import coverLettersRoutes  from './routes/coverLetters.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,8 +87,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile',   profileRoutes);
 app.use('/api/jobs',      jobsRoutes);
 app.use('/api/ai',        aiRoutes);
-app.use('/api/resumes',   resumesRoutes);
-app.use('/api/templates', templatesRoutes);
+app.use('/api/resumes',       resumesRoutes);
+app.use('/api/templates',     templatesRoutes);
+app.use('/api/cover-letters', coverLettersRoutes);
 
 // ─── 404 & Error Handlers ────────────────────────────────────────────────────
 app.use(notFoundHandler);
