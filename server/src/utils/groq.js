@@ -4,7 +4,7 @@
  * Wraps the Groq OpenAI-compatible API using native fetch (no extra dep).
  * - The model is configurable via GROQ_MODEL env var.
  * - Supports both regular chat completions and structured JSON output.
- * - Handles rate limits (429), token limits (400/413), and network errors gracefully.
+ * - Handles rate limits, context limits, and network errors gracefully.
  * - Exposes a single callGroq() function used by all AI services.
  *
  * Groq API docs: https://console.groq.com/docs
@@ -15,6 +15,15 @@
 import { env } from '../config/env.js';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const STRICT_JSON_SCHEMA_MODELS = new Set([
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-120b',
+]);
+
+const sanitizeLogValue = (value) =>
+  typeof value === 'string'
+    ? value.replace(/[^a-zA-Z0-9_./-]/g, '').slice(0, 80)
+    : '';
 
 /**
  * Custom error class for Groq API failures.
@@ -38,6 +47,7 @@ export class GroqError extends Error {
  * @param {number} [params.temperature]  - 0–2, lower = more deterministic
  * @param {number} [params.maxTokens]    - Max output tokens
  * @param {boolean} [params.jsonMode]    - If true, sets response_format to json_object
+ * @param {Object}  [params.jsonSchema]  - Strict JSON schema response format
  * @returns {Promise<string>} The assistant's reply content (plain text or JSON string)
  *
  * @throws {GroqError} On any API failure (auth, rate limit, network, bad response)
@@ -48,6 +58,7 @@ export const callGroq = async ({
   temperature = 0.7,
   maxTokens = 4000,
   jsonMode = false,
+  jsonSchema = null,
 }) => {
   if (!env.GROQ_API_KEY || env.GROQ_API_KEY === 'your_groq_api_key_here') {
     throw new GroqError(
@@ -60,11 +71,12 @@ export const callGroq = async ({
     model,
     messages,
     temperature,
-    max_tokens: maxTokens,
+    max_completion_tokens: maxTokens,
   };
 
-  // Request structured JSON output — Groq will return valid JSON
-  if (jsonMode) {
+  if (jsonSchema) {
+    body.response_format = { type: 'json_schema', json_schema: jsonSchema };
+  } else if (jsonMode) {
     body.response_format = { type: 'json_object' };
   }
 
@@ -79,6 +91,9 @@ export const callGroq = async ({
       body: JSON.stringify(body),
     });
   } catch (networkErr) {
+    if (env.isDev) {
+      console.error('[Groq API] Network request failed');
+    }
     throw new GroqError(
       'Could not reach the AI service. Please check your internet connection and try again.',
       503
@@ -88,42 +103,107 @@ export const callGroq = async ({
   // ─── Handle non-200 responses ──────────────────────────────────────────────
 
   if (!response.ok) {
-    let errorDetail = '';
+    let errBody = null;
     try {
-      const errBody = await response.json();
-      errorDetail = errBody?.error?.message || JSON.stringify(errBody);
+      errBody = await response.json();
     } catch {
-      errorDetail = await response.text().catch(() => '');
+      if (env.isDev) {
+        console.error('[Groq API] Error response was not valid JSON', {
+          status: response.status,
+          model: sanitizeLogValue(model),
+        });
+      }
     }
 
-    // Rate limited (429) — Groq returns retry info
+    const providerError = errBody?.error ?? {};
+    const errorCode = sanitizeLogValue(providerError.code);
+    const errorType = sanitizeLogValue(providerError.type);
+    const errorMessage =
+      typeof providerError.message === 'string' ? providerError.message : '';
+    const failedGenerationPresent =
+      Object.prototype.hasOwnProperty.call(providerError, 'failed_generation');
+    const jsonValidationFailed =
+      /failed to validate json/i.test(errorMessage) ||
+      /json[_ -]?(validation|validate)/i.test(`${errorCode} ${errorType}`);
+    const errorText = `${errorCode} ${errorType} ${errorMessage}`.toLowerCase();
+    const inputTooLong =
+      response.status === 413 ||
+      /context[_ ]length|context window|too many tokens|input.{0,30}too long|prompt.{0,30}too long|reduce the length of (the )?messages/.test(errorText);
+
+    const reason = response.status === 429
+      ? 'rate_limit'
+      : response.status === 401
+        ? 'authentication'
+        : inputTooLong
+          ? 'context_limit'
+          : jsonValidationFailed
+            ? 'json_validation'
+            : 'provider_rejected_request';
+
+    if (env.isDev) {
+      console.error('[Groq API] Request failed', {
+        status: response.status,
+        model: sanitizeLogValue(model),
+        code: errorCode,
+        type: errorType,
+        reason,
+        message: jsonValidationFailed ? 'Failed to validate JSON' : undefined,
+        failedGenerationPresent,
+      });
+    }
+
+    const safeError = {
+      status: response.status,
+      code: errorCode,
+      type: errorType,
+      jsonValidationFailed,
+      failedGenerationPresent,
+    };
+
     if (response.status === 429) {
       throw new GroqError(
         'AI request limit reached. Please wait a moment and try again.',
-        429
+        429,
+        safeError
       );
     }
 
-    // Invalid API key or quota exhausted
     if (response.status === 401) {
       throw new GroqError(
         'AI service authentication failed. Check the GROQ_API_KEY setting.',
-        503
+        503,
+        safeError
       );
     }
 
-    // Token limit exceeded
-    if (response.status === 400 || response.status === 413) {
+    if (inputTooLong) {
       throw new GroqError(
         'The input is too long for the AI to process. Please shorten the text and try again.',
-        422
+        422,
+        safeError
       );
     }
 
-    // Generic server error from Groq
+    if (jsonValidationFailed) {
+      throw new GroqError(
+        'AI could not format a complete response. Please try again.',
+        502,
+        safeError
+      );
+    }
+
+    if (response.status === 400) {
+      throw new GroqError(
+        'AI service rejected the request. Check server configuration and try again.',
+        502,
+        safeError
+      );
+    }
+
     throw new GroqError(
-      `AI service returned an error (${response.status}). ${errorDetail}`,
-      502
+      'AI service is temporarily unavailable. Please try again.',
+      502,
+      safeError
     );
   }
 
@@ -162,14 +242,40 @@ export const callGroq = async ({
  * @param {number} [maxTokens] - Max output tokens
  * @returns {Promise<{ data: Object, usage: Object }>}
  */
-export const callGroqJSON = async ({ messages, model, maxTokens = 4000, temperature = 0.5 }) => {
-  const { content, usage } = await callGroq({
-    messages,
-    model,
-    temperature,
-    maxTokens,
-    jsonMode: true,
-  });
+export const callGroqJSON = async ({
+  messages,
+  model,
+  maxTokens = 4000,
+  temperature = 0.5,
+  jsonSchema = null,
+}) => {
+  const supportsStrictJsonSchema = jsonSchema &&
+    STRICT_JSON_SCHEMA_MODELS.has(model ?? env.GROQ_MODEL);
+
+  let response;
+  try {
+    response = await callGroq({
+      messages,
+      model,
+      temperature,
+      maxTokens,
+      jsonMode: !supportsStrictJsonSchema,
+      jsonSchema: supportsStrictJsonSchema ? jsonSchema : null,
+    });
+  } catch (error) {
+    if (!supportsStrictJsonSchema || !error.groqError?.jsonValidationFailed) {
+      throw error;
+    }
+
+    response = await callGroq({
+      messages,
+      model,
+      temperature,
+      maxTokens,
+    });
+  }
+
+  const { content, usage } = response;
 
   // The content should be a valid JSON string when jsonMode is true.
   // Groq sometimes wraps it in markdown code fences — strip those if present.
