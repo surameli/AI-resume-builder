@@ -11,6 +11,7 @@
  */
 import prisma from '../config/database.js';
 import { callGroqJSON, GroqError } from '../utils/groq.js';
+import { normalizeCoverLetterResponse } from '../utils/coverLetterResponse.js';
 import {
   JOB_ANALYSIS_SYSTEM_PROMPT,
   buildJobAnalysisUserPrompt,
@@ -247,4 +248,106 @@ export const improveContent = async (userId, content, instructions = '') => {
   await recordAIUsage(userId, 'IMPROVE_CONTENT', usage.totalTokens, true);
 
   return { improvedContent, usage };
+};
+
+// ─── Generate Cover Letter ────────────────────────────────────────────────────
+
+import {
+  COVER_LETTER_SYSTEM_PROMPT,
+  COVER_LETTER_RESPONSE_SCHEMA,
+  buildCoverLetterUserPrompt,
+  REWRITE_COVER_LETTER_SYSTEM_PROMPT,
+  buildRewritePrompt,
+} from '../prompts/coverLetterGeneration.js';
+
+/**
+ * Generates a cover letter using the user's profile + optional job + resume.
+ * Returns structured JSON — does NOT save to DB.
+ *
+ * @param {string} userId
+ * @param {{ jobDescriptionId, resumeId, preferences }} options
+ * @returns {Promise<{ subject, salutation, body, closing, wordCount, usage }>}
+ */
+export const generateCoverLetter = async (userId, { jobDescriptionId, resumeId, preferences = {} }) => {
+  await checkUsageLimit(userId, 'GENERATE_COVER_LETTER');
+
+  // Fetch the user's profile
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    include: {
+      experiences:    { orderBy: { displayOrder: 'asc' } },
+      education:      { orderBy: { displayOrder: 'asc' } },
+      skills:         { orderBy: { displayOrder: 'asc' } },
+      projects:       { orderBy: { displayOrder: 'asc' } },
+      certifications: { orderBy: { displayOrder: 'asc' } },
+    },
+  });
+
+  if (!profile || (!profile.firstName && !profile.experiences?.length)) {
+    const e = new Error('Please complete your profile before generating a cover letter.');
+    e.statusCode = 400;
+    throw e;
+  }
+
+  // Fetch job description if provided
+  let job = null;
+  if (jobDescriptionId) {
+    job = await prisma.jobDescription.findUnique({ where: { id: jobDescriptionId } });
+    if (!job || job.userId !== userId) {
+      const e = new Error('Job description not found'); e.statusCode = 404; throw e;
+    }
+  }
+
+  // Fetch resume if provided (for the summary)
+  let resume = null;
+  if (resumeId) {
+    resume = await prisma.resume.findUnique({ where: { id: resumeId } });
+    if (!resume || resume.userId !== userId) {
+      const e = new Error('Resume not found'); e.statusCode = 404; throw e;
+    }
+  }
+
+  const { data, usage } = await callGroqJSON({
+    messages: [
+      { role: 'system', content: COVER_LETTER_SYSTEM_PROMPT },
+      { role: 'user',   content: buildCoverLetterUserPrompt(profile, job, resume, preferences) },
+    ],
+    temperature: 0.7,
+    maxTokens:   4000,
+    jsonSchema: COVER_LETTER_RESPONSE_SCHEMA,
+  });
+
+  const result = normalizeCoverLetterResponse(data);
+
+  await recordAIUsage(userId, 'GENERATE_COVER_LETTER', usage.totalTokens, true, {
+    jobDescriptionId: jobDescriptionId ?? null,
+  });
+
+  return { ...result, usage };
+};
+
+// ─── Rewrite Cover Letter ─────────────────────────────────────────────────────
+
+/**
+ * Rewrites a cover letter body per the user's instructions.
+ * @param {string} userId
+ * @param {string} body         - Existing cover letter body
+ * @param {string} instructions - What to change
+ * @returns {Promise<{ body: string, usage: Object }>}
+ */
+export const rewriteCoverLetter = async (userId, body, instructions) => {
+  await checkUsageLimit(userId, 'IMPROVE_CONTENT');
+
+  const { data, usage } = await callGroqJSON({
+    messages: [
+      { role: 'system', content: REWRITE_COVER_LETTER_SYSTEM_PROMPT },
+      { role: 'user',   content: buildRewritePrompt(body, instructions) },
+    ],
+    temperature: 0.6,
+    maxTokens:   1500,
+  });
+
+  await recordAIUsage(userId, 'IMPROVE_CONTENT', usage.totalTokens, true);
+
+  return { body: data.body ?? body, usage };
 };
